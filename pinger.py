@@ -21,10 +21,6 @@ COLORS = {
 startTime = ''
 countUriForChecking = 0
 
-def logging(text, color='reset', flush = False):
-    br = '' if flush else '\n'
-    sys.stdout.write(''.join([COLORS[color], text, COLORS['reset'],  " "* (80-len(text)), '\r', br]))
-    sys.stdout.flush()
 
 
 def main():
@@ -52,7 +48,7 @@ def main():
     uriForChecking = getUriesFromFile(PATH_TO_NGINX_ACCESS_LOG)
     logging('{:<20}:{:d}'.format('Found unique uri', len(uriForChecking)))
     logging('{:<20}:{:s}'.format('Login to admin:', 'Processing...'), flush = True)
-    logging('{:<20}:{:s}'.format('Login to admin:', setLogin()))
+    logging('{:<20}:{:s}'.format('Login to admin:', setDjangoAdminLogin()))
 
     enclosure_queue = Queue()
     for uri in uriForChecking:
@@ -77,8 +73,12 @@ def main():
 
     logging('Done. More logs here: ' + ABS_PATH_TO_LOG ,'green')
 
+def logging(text, color='reset', flush = False):
+    br = '' if flush else '\n'
+    sys.stdout.write(''.join([COLORS[color], text, COLORS['reset'],  " "* (80-len(text)), '\r', br]))
+    sys.stdout.flush()
 
-def setLogin():
+def setDjangoAdminLogin():
 
     login_url = HOST+'/admin/'
 
