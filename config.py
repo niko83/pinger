@@ -1,5 +1,5 @@
 # Configuration
-HOST = 'http://trunkimax.loc'
+HOST = 'http://domainForTest.loc'
 
 # absolute or relative path to access nginx log
 PATH_TO_NGINX_ACCESS_LOG = '/var/log/nginx/access.log.1'
