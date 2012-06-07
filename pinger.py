@@ -26,7 +26,6 @@ countUriForChecking = 0
 def main():
 
     os.system('clear')
-#    logging ('{:*^50}'.format('Preparing'))
     logging ('{:<20}:{:s}'.format('Testing host', HOST))
 
     if not os.path.exists(PATH_TO_LOG):
@@ -122,7 +121,8 @@ def getUriesFromFile(path_to_file):
         lines = True
         uriForChecking = set()
         while lines:
-            lines = log_file.readlines(50000000)
+            count_symbols_in_part = 50000000
+            lines = log_file.readlines(count_symbols_in_part)
             for line in lines:
                 if isFakeRequest(line):
                     continue
@@ -186,10 +186,7 @@ def getErrorFilename(error):
 
 
 def isFakeRequest(line):
-
-    fakeSegments = ['POST', 'check', 'Zabbix', '/media/']
-
-    for segment in fakeSegments:
+    for segment in FAKE_SUBSTR:
         if segment in line:
             return True
 
