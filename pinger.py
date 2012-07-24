@@ -10,7 +10,8 @@ from Queue import Queue
 from threading import Thread
 import time
 
-from config import *
+from config import HOST, PATH_TO_NGINX_ACCESS_LOG, PATH_TO_LOG, COUNT_LATEST_BITES, \
+        COUNT_THREADING, PRINT_STATUS_COUNT, FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD
 
 COLORS = {
     'reset' : "\x1b[0m",
@@ -18,11 +19,12 @@ COLORS = {
     'red':"\x1b[31;01m"
 }
 
-startTime = ''
-countUriForChecking = 0
-countError5xx = 0
-countError4xx = 0
-countErrorOther = 0
+class Counters(object):
+    startTime = ''
+    uriForChecking = 0
+    error5xx  = 0
+    error4xx = 0
+    errorOther = 0
 
 def main():
 
@@ -35,7 +37,6 @@ def main():
     if not os.path.exists(PATH_TO_NGINX_ACCESS_LOG):
         logging('Error: path to nginx access log "%s" not found!!!\n' % PATH_TO_NGINX_ACCESS_LOG, 'red')
         return
-
 
     logging('{:<20}:{:s} ({:.2f} Mb from {:.2f} Mb)'.format(
             'Parsing log file',
@@ -54,10 +55,8 @@ def main():
     for uri in uriForChecking:
         enclosure_queue.put(uri)
 
-    global startTime
-    startTime = time.time()
-    global countUriForChecking
-    countUriForChecking = len(uriForChecking)
+    Counters.startTime = time.time()
+    Counters.uriForChecking = len(uriForChecking)
 
     for i in range(COUNT_THREADING):
         worker = Thread(target=processingUriQueue, args=(enclosure_queue,))
@@ -150,21 +149,18 @@ def processingUriQueue(queue):
         queue.task_done()
         qsize = queue.qsize()
         if qsize % PRINT_STATUS_COUNT == 0:
-            executTimeOneRequest = (time.time() - startTime)/(countUriForChecking - qsize)
+            executTimeOneRequest = (time.time() - Counters.startTime)/(Counters.uriForChecking - qsize)
             leftTime = qsize * executTimeOneRequest
 
             leftTime_hour = int(leftTime / 3600)
             leftTime_min  = int((leftTime - leftTime_hour*3600)/ 60)
             leftTime_sec  = int(leftTime-leftTime_min*60 - leftTime_hour*3600)
             logging  ('Processing... Left parsing {:>7d} urls (time left {:->3d}:{:->2d}:{:->2d}). Errors 5xx:{:d} 4xx:{:d} Other:{:d}'\
-                    .format(qsize , leftTime_hour, leftTime_min, leftTime_sec, countError5xx, countError4xx, countErrorOther), flush=True)
+                    .format(qsize , leftTime_hour, leftTime_min, leftTime_sec, Counters.error5xx , Counters.error4xx, Counters.errorOther), flush=True)
 
 
 def checkUri(uri):
     url = HOST+uri
-    global countError4xx
-    global countError5xx
-    global countErrorOther
 
     try:
         request = urllib2.Request(url)
@@ -176,14 +172,14 @@ def checkUri(uri):
         log_file_name = getErrorFilename(error)
 
         if 400 <= int(error.code) < 500:
-            countError4xx+=1
+            Counters.error4xx += 1
         elif 500 <= int(error.code) < 600:
-            countError5xx+=1
+            Counters.error5xx += 1
         else:
-            countErrorOther+=1
+            Counters.errorOther += 1
         message = '%s - %s' % (error, url)
     except Exception as error:
-        countErrorOther+=1
+        Counters.errorOther+=1
         log_file_name = getErrorFilename(error)
         message = '%s - %s' % (error, url)
 
