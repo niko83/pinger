@@ -20,8 +20,9 @@ COLORS = {
 
 startTime = ''
 countUriForChecking = 0
-
-
+countError5xx = 0
+countError4xx = 0
+countErrorOther = 0
 
 def main():
 
@@ -69,7 +70,7 @@ def main():
         ABS_PATH_TO_LOG = PATH_TO_LOG
     else:
         ABS_PATH_TO_LOG = ''.join([os.path.dirname(os.path.abspath(__file__)), '/', PATH_TO_LOG])
-
+    print ""
     logging('Done. More logs here: ' + ABS_PATH_TO_LOG ,'green')
 
 def logging(text, color='reset', flush = False):
@@ -155,18 +156,34 @@ def processingUriQueue(queue):
             leftTime_hour = int(leftTime / 3600)
             leftTime_min  = int((leftTime - leftTime_hour*3600)/ 60)
             leftTime_sec  = int(leftTime-leftTime_min*60 - leftTime_hour*3600)
-            logging  ('Processing... Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d})'.format(qsize , leftTime_hour, leftTime_min, leftTime_sec), flush=True)
+            logging  ('Processing... Left parsing {:>7d} urls (time left {:->3d}:{:->2d}:{:->2d}). Errors 5xx:{:d} 4xx:{:d} Other:{:d}'\
+                    .format(qsize , leftTime_hour, leftTime_min, leftTime_sec, countError5xx, countError4xx, countErrorOther), flush=True)
 
 
 def checkUri(uri):
     url = HOST+uri
+    global countError4xx
+    global countError5xx
+    global countErrorOther
+
     try:
         request = urllib2.Request(url)
         request.get_method = lambda : 'HEAD'
-        urllib2.urlopen(request)
+        response = urllib2.urlopen(request)
         log_file_name = 'ok'
         message = '%s' % url
+    except urllib2.HTTPError as error:
+        log_file_name = getErrorFilename(error)
+
+        if 400 <= int(error.code) < 500:
+            countError4xx+=1
+        elif 500 <= int(error.code) < 600:
+            countError5xx+=1
+        else:
+            countErrorOther+=1
+        message = '%s - %s' % (error, url)
     except Exception as error:
+        countErrorOther+=1
         log_file_name = getErrorFilename(error)
         message = '%s - %s' % (error, url)
 
