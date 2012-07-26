@@ -105,12 +105,15 @@ def setDjangoAdminLogin():
 
     encoded_params = urllib.urlencode(params)
 
-    with contextlib.closing(opener.open(login_url, encoded_params)) as f:
-        response = f.read()
-    if 'id="login-form"' in response:
-        return 'Wrong login or password'
-    else:
-        return 'OK'
+    try:
+        with contextlib.closing(opener.open(login_url, encoded_params)) as f:
+            response = f.read()
+        if 'id="login-form"' in response:
+            return 'Wrong login or password'
+        else:
+            return 'OK'
+    except Exception as error:
+        return str(error)
 
 
 def getUriesFromFile(path_to_file):
