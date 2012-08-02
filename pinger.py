@@ -13,6 +13,9 @@ import time
 from config import HOST, PATH_TO_NGINX_ACCESS_LOG, PATH_TO_LOG, COUNT_LATEST_BITES, \
         COUNT_THREADING, PRINT_STATUS_COUNT, FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD
 
+class PingerException(Exception):
+    pass
+
 COLORS = {
     'reset' : "\x1b[0m",
     'green':"\x1b[32;01m",
@@ -48,8 +51,8 @@ def main():
             ))
     uriForChecking = getUriesFromFile(PATH_TO_NGINX_ACCESS_LOG)
     logging('{:<20}:{:d}'.format('Found unique uri', len(uriForChecking)))
-    logging('{:<20}:{:s}'.format('Login to admin:', 'Processing...'), flush = True)
-    logging('{:<20}:{:s}'.format('Login to admin:', setDjangoAdminLogin()))
+
+    setDjangoAdminLogin()
 
     enclosure_queue = Queue()
     for uri in uriForChecking:
@@ -78,42 +81,44 @@ def logging(text, color='reset', flush = False):
     sys.stdout.flush()
 
 def setDjangoAdminLogin():
-
-    login_url = HOST+'/admin/'
-
-    cookies = urllib2.HTTPCookieProcessor()
-    opener = urllib2.build_opener(cookies)
-    urllib2.install_opener(opener)
+    logging('{:<20}:{:s}'.format('Login to admin:', 'Processing...'), flush = True)
 
     try:
-        opener.open(login_url)
-    except:
-        return "ERROR, %s is't open" % login_url
+        login_url = HOST+'/admin/'
 
-    try:
-        token = [x.value for x in cookies.cookiejar if x.name == 'crsf_cookie'][0]
-    except IndexError:
-        return "ERROR, no csrftoken"
+        cookies = urllib2.HTTPCookieProcessor()
+        opener = urllib2.build_opener(cookies)
+        urllib2.install_opener(opener)
 
-    params = dict(
-        username = DJANGO_ADMIN_LOGIN,
-        password = DJANGO_ADMIN_PASSWORD,
-        this_is_the_login_form=True,
-        csrfmiddlewaretoken=token,
-        next='/admin/'
-    )
+        try:
+            opener.open(login_url)
+        except:
+            raise PingerException("ERROR, %s is't open" % login_url)
 
-    encoded_params = urllib.urlencode(params)
+        try:
+            token = [x.value for x in cookies.cookiejar if x.name == 'crsf_cookie'][0]
+        except IndexError:
+            raise PingerException("ERROR, no csrftoken")
 
-    try:
+        params = dict(
+            username = DJANGO_ADMIN_LOGIN,
+            password = DJANGO_ADMIN_PASSWORD,
+            this_is_the_login_form=True,
+            csrfmiddlewaretoken=token,
+            next='/admin/'
+        )
+
+        encoded_params = urllib.urlencode(params)
+
         with contextlib.closing(opener.open(login_url, encoded_params)) as f:
             response = f.read()
         if 'id="login-form"' in response:
-            return 'Wrong login or password'
-        else:
-            return 'OK'
-    except Exception as error:
-        return str(error)
+            raise PingerException('Wrong login or password')
+    except PingerException as error:
+        djangoAdminMessage = ''.join([COLORS['red'], str(error), COLORS['reset']])
+    else:
+        djangoAdminMessage = 'OK'
+    logging('{:<20}:{:s}'.format('Login to admin:', djangoAdminMessage))
 
 
 def getUriesFromFile(path_to_file):
@@ -158,7 +163,7 @@ def processingUriQueue(queue):
             leftTime_hour = int(leftTime / 3600)
             leftTime_min  = int((leftTime - leftTime_hour*3600)/ 60)
             leftTime_sec  = int(leftTime-leftTime_min*60 - leftTime_hour*3600)
-            logging  ('Processing... Left parsing {:>7d} urls (time left {:->3d}:{:->2d}:{:->2d}). Errors 5xx:{:d} 4xx:{:d} Other:{:d}'\
+            logging  ('Processing... Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d}). Errors 5xx:{:d} 4xx:{:d} Other:{:d}'\
                     .format(qsize , leftTime_hour, leftTime_min, leftTime_sec, Counters.error5xx , Counters.error4xx, Counters.errorOther), flush=True)
 
 
