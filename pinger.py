@@ -163,8 +163,9 @@ def processingUriQueue(queue):
             leftTime_hour = int(leftTime / 3600)
             leftTime_min  = int((leftTime - leftTime_hour*3600)/ 60)
             leftTime_sec  = int(leftTime-leftTime_min*60 - leftTime_hour*3600)
-            logging  ('Processing... Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d}). Errors 5xx:{:d} 4xx:{:d} Other:{:d}'\
-                    .format(qsize , leftTime_hour, leftTime_min, leftTime_sec, Counters.error5xx , Counters.error4xx, Counters.errorOther), flush=True)
+
+            logging  ('Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d}). Avg. time response: {:d} ms. Errors 5xx:{:d} 4xx:{:d} Other:{:d}'\
+                    .format(qsize , leftTime_hour, leftTime_min, leftTime_sec, int(executTimeOneRequest * 1000),Counters.error5xx , Counters.error4xx, Counters.errorOther), flush=True)
 
 
 def checkUri(uri):
@@ -173,7 +174,7 @@ def checkUri(uri):
     try:
         request = urllib2.Request(url)
         request.get_method = lambda : 'HEAD'
-        response = urllib2.urlopen(request)
+        urllib2.urlopen(request)
         log_file_name = 'ok'
         message = '%s' % url
     except urllib2.HTTPError as error:
@@ -187,7 +188,7 @@ def checkUri(uri):
             Counters.errorOther += 1
         message = '%s - %s' % (error, url)
     except Exception as error:
-        Counters.errorOther+=1
+        Counters.errorOther += 1
         log_file_name = getErrorFilename(error)
         message = '%s - %s' % (error, url)
 
