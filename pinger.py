@@ -10,29 +10,33 @@ from Queue import Queue
 from threading import Thread
 import time
 
-from config import HOST, PATH_TO_NGINX_ACCESS_LOG, PATH_TO_LOG, COUNT_LATEST_BITES, \
-        COUNT_THREADING, PRINT_STATUS_COUNT, FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD
+from config import HOST, PATH_TO_NGINX_ACCESS_LOG, PATH_TO_LOG,
+                   COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,
+                   FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD
+
+COLORS = {
+    'reset': "\x1b[0m",
+    'green': "\x1b[32;01m",
+    'red': "\x1b[31;01m"
+}
+
 
 class PingerException(Exception):
     pass
 
-COLORS = {
-    'reset' : "\x1b[0m",
-    'green':"\x1b[32;01m",
-    'red':"\x1b[31;01m"
-}
 
 class Counters(object):
     startTime = ''
     uriForChecking = 0
-    error5xx  = 0
+    error5xx = 0
     error4xx = 0
     errorOther = 0
+
 
 def main():
 
     os.system('clear')
-    logging ('{:<20}:{:s}'.format('Testing host', HOST))
+    logging('{:<20}:{:s}'.format('Testing host', HOST))
 
     if not os.path.exists(PATH_TO_LOG):
         logging('Error: path to logs "%s" not found!!!\n' % PATH_TO_LOG, 'red')
@@ -44,10 +48,10 @@ def main():
     logging('{:<20}:{:s} ({:.2f} Mb from {:.2f} Mb)'.format(
             'Parsing log file',
             PATH_TO_NGINX_ACCESS_LOG,
-            COUNT_LATEST_BITES/(1024*1024)\
-                    if COUNT_LATEST_BITES  and (os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_BITES) \
-                    else os.path.getsize(PATH_TO_NGINX_ACCESS_LOG)/(1024*1024),
-            os.path.getsize(PATH_TO_NGINX_ACCESS_LOG)/(1024*1024)
+            COUNT_LATEST_BITES / (1024 * 1024)
+            if COUNT_LATEST_BITES and (os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_BITES)
+            else os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) / (1024 * 1024),
+            os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) / (1024 * 1024)
             ))
     uriForChecking = getUriesFromFile(PATH_TO_NGINX_ACCESS_LOG)
     logging('{:<20}:{:d}'.format('Found unique uri', len(uriForChecking)))
@@ -73,19 +77,20 @@ def main():
     else:
         ABS_PATH_TO_LOG = ''.join([os.path.dirname(os.path.abspath(__file__)), '/', PATH_TO_LOG])
     print ""
-    logging('Done. More logs here: ' + ABS_PATH_TO_LOG ,'green')
+    logging('Done. More logs here: ' + ABS_PATH_TO_LOG, 'green')
 
-def logging(text, color='reset', flush = False):
+
+def logging(text, color='reset', flush=False):
     br = '' if flush else '\n'
-    sys.stdout.write(''.join([COLORS[color], text, COLORS['reset'],  " "* (80-len(text)), '\r', br]))
+    sys.stdout.write(''.join([COLORS[color], text, COLORS['reset'],  " " * (80 - len(text)), '\r', br]))
     sys.stdout.flush()
 
+
 def setDjangoAdminLogin():
-    logging('{:<20}:{:s}'.format('Login to admin:', 'Processing...'), flush = True)
+    logging('{:<20}:{:s}'.format('Login to admin:', 'Processing...'), flush=True)
 
     try:
-        login_url = HOST+'/admin/'
-
+        login_url = HOST + '/admin/'
         cookies = urllib2.HTTPCookieProcessor()
         opener = urllib2.build_opener(cookies)
         urllib2.install_opener(opener)
@@ -101,8 +106,8 @@ def setDjangoAdminLogin():
             raise PingerException("ERROR, no csrftoken")
 
         params = dict(
-            username = DJANGO_ADMIN_LOGIN,
-            password = DJANGO_ADMIN_PASSWORD,
+            username=DJANGO_ADMIN_LOGIN,
+            password=DJANGO_ADMIN_PASSWORD,
             this_is_the_login_form=True,
             csrfmiddlewaretoken=token,
             next='/admin/'
@@ -143,6 +148,7 @@ def getUriesFromFile(path_to_file):
 
     return uriForChecking
 
+
 def getUriFromLine(line):
     url_match = re.match(r'.*"(GET|HEAD)\s([^\s]*)\s.*', line)
     if url_match:
@@ -157,23 +163,24 @@ def processingUriQueue(queue):
         queue.task_done()
         qsize = queue.qsize()
         if qsize % PRINT_STATUS_COUNT == 0:
-            executTimeOneRequest = (time.time() - Counters.startTime)/(Counters.uriForChecking - qsize)
+            executTimeOneRequest = (time.time() - Counters.startTime) / (Counters.uriForChecking - qsize)
             leftTime = qsize * executTimeOneRequest
 
             leftTime_hour = int(leftTime / 3600)
-            leftTime_min  = int((leftTime - leftTime_hour*3600)/ 60)
-            leftTime_sec  = int(leftTime-leftTime_min*60 - leftTime_hour*3600)
+            leftTime_min = int((leftTime - leftTime_hour * 3600) / 60)
+            leftTime_sec = int(leftTime - leftTime_min * 60 - leftTime_hour * 3600)
 
-            logging  ('Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d}). Avg. time response: {:d} ms. Errors 5xx:{:d} 4xx:{:d} Other:{:d}'\
-                    .format(qsize , leftTime_hour, leftTime_min, leftTime_sec, int(executTimeOneRequest * 1000),Counters.error5xx , Counters.error4xx, Counters.errorOther), flush=True)
+            logging('Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d}). Avg. time response: {:d} ms. Errors 5xx:{:d} 4xx:{:d} Other:{:d}'
+                    .format(qsize, leftTime_hour, leftTime_min, leftTime_sec, int(executTimeOneRequest * 1000),
+                            Counters.error5xx, Counters.error4xx, Counters.errorOther), flush=True)
 
 
 def checkUri(uri):
-    url = HOST+uri
+    url = HOST + uri
 
     try:
         request = urllib2.Request(url)
-        request.get_method = lambda : 'HEAD'
+        request.get_method = lambda: 'HEAD'
         urllib2.urlopen(request)
         log_file_name = 'ok'
         message = '%s' % url
@@ -193,8 +200,8 @@ def checkUri(uri):
         message = '%s - %s' % (error, url)
 
     try:
-        logging_file = open(PATH_TO_LOG+log_file_name, 'a')
-        logging_file.write('\n'+message)
+        logging_file = open(PATH_TO_LOG + log_file_name, 'a')
+        logging_file.write('\n' + message)
     finally:
         logging_file.close()
 
