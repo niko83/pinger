@@ -10,9 +10,11 @@ from Queue import Queue
 from threading import Thread
 import time
 
-from config import HOST, PATH_TO_NGINX_ACCESS_LOG, PATH_TO_LOG,
-                   COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,
+from config import HOST, PATH_TO_NGINX_ACCESS_LOG, PATH_TO_LOG,\
+                   COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,\
                    FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD
+
+COUNT_LATEST_MBITES = COUNT_LATEST_BITES / (1024 * 1024)
 
 COLORS = {
     'reset': "\x1b[0m",
@@ -27,10 +29,14 @@ class PingerException(Exception):
 
 class Counters(object):
     startTime = ''
-    uriForChecking = 0
+    uri_for_checking = 0
     error5xx = 0
     error4xx = 0
     errorOther = 0
+
+
+def get_file_size_mb(path):
+    return os.path.getsize(path) / (1024 * 1024)
 
 
 def main():
@@ -45,28 +51,30 @@ def main():
         logging('Error: path to nginx access log "%s" not found!!!\n' % PATH_TO_NGINX_ACCESS_LOG, 'red')
         return
 
-    logging('{:<20}:{:s} ({:.2f} Mb from {:.2f} Mb)'.format(
-            'Parsing log file',
-            PATH_TO_NGINX_ACCESS_LOG,
-            COUNT_LATEST_BITES / (1024 * 1024)
-            if COUNT_LATEST_BITES and (os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_BITES)
-            else os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) / (1024 * 1024),
-            os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) / (1024 * 1024)
-            ))
-    uriForChecking = getUriesFromFile(PATH_TO_NGINX_ACCESS_LOG)
-    logging('{:<20}:{:d}'.format('Found unique uri', len(uriForChecking)))
+    if COUNT_LATEST_MBITES and (get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_MBITES):
+        analized_fragment = COUNT_LATEST_MBITES
+    else:
+        analized_fragment = get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG)
 
-    setDjangoAdminLogin()
+    logging('{:<20}:{:s} ({:.2f} Mb from {:.2f} Mb)'.format(
+            'Parsing log file', PATH_TO_NGINX_ACCESS_LOG,
+            analized_fragment,
+            get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG)
+            ))
+    uri_for_checking = getUriesFromFile(PATH_TO_NGINX_ACCESS_LOG)
+    logging('{:<20}:{:d}'.format('Found unique uri', len(uri_for_checking)))
+
+    set_django_admin_login()
 
     enclosure_queue = Queue()
-    for uri in uriForChecking:
+    for uri in uri_for_checking:
         enclosure_queue.put(uri)
 
     Counters.startTime = time.time()
-    Counters.uriForChecking = len(uriForChecking)
+    Counters.uri_for_checking = len(uri_for_checking)
 
     for i in range(COUNT_THREADING):
-        worker = Thread(target=processingUriQueue, args=(enclosure_queue,))
+        worker = Thread(target=processing_uri_queue, args=(enclosure_queue,))
         worker.setDaemon(True)
         worker.start()
 
@@ -86,7 +94,7 @@ def logging(text, color='reset', flush=False):
     sys.stdout.flush()
 
 
-def setDjangoAdminLogin():
+def set_django_admin_login():
     logging('{:<20}:{:s}'.format('Login to admin:', 'Processing...'), flush=True)
 
     try:
@@ -120,10 +128,10 @@ def setDjangoAdminLogin():
         if 'id="login-form"' in response:
             raise PingerException('Wrong login or password')
     except PingerException as error:
-        djangoAdminMessage = ''.join([COLORS['red'], str(error), COLORS['reset']])
+        django_admin_message = ''.join([COLORS['red'], str(error), COLORS['reset']])
     else:
-        djangoAdminMessage = 'OK'
-    logging('{:<20}:{:s}'.format('Login to admin:', djangoAdminMessage))
+        django_admin_message = 'OK'
+    logging('{:<20}:{:s}'.format('Login to admin:', django_admin_message))
 
 
 def getUriesFromFile(path_to_file):
@@ -132,38 +140,38 @@ def getUriesFromFile(path_to_file):
         if COUNT_LATEST_BITES and (os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_BITES):
             log_file.seek(-COUNT_LATEST_BITES, 2)
         lines = True
-        uriForChecking = set()
+        uri_for_checking = set()
         while lines:
             count_symbols_in_part = 50000000
             lines = log_file.readlines(count_symbols_in_part)
             for line in lines:
-                if isFakeRequest(line):
+                if is_fake_request(line):
                     continue
 
-                uri = getUriFromLine(line)
+                uri = get_uri_from_line(line)
                 if uri:
-                    uriForChecking.add(uri)
+                    uri_for_checking.add(uri)
     finally:
         log_file.close()
 
-    return uriForChecking
+    return uri_for_checking
 
 
-def getUriFromLine(line):
+def get_uri_from_line(line):
     url_match = re.match(r'.*"(GET|HEAD)\s([^\s]*)\s.*', line)
     if url_match:
         return url_match.group(2)
     return False
 
 
-def processingUriQueue(queue):
+def processing_uri_queue(queue):
     while True:
         uri = queue.get()
-        checkUri(uri)
+        check_uri(uri)
         queue.task_done()
         qsize = queue.qsize()
         if qsize % PRINT_STATUS_COUNT == 0:
-            executTimeOneRequest = (time.time() - Counters.startTime) / (Counters.uriForChecking - qsize)
+            executTimeOneRequest = (time.time() - Counters.startTime) / (Counters.uri_for_checking - qsize)
             leftTime = qsize * executTimeOneRequest
 
             leftTime_hour = int(leftTime / 3600)
@@ -175,7 +183,7 @@ def processingUriQueue(queue):
                             Counters.error5xx, Counters.error4xx, Counters.errorOther), flush=True)
 
 
-def checkUri(uri):
+def check_uri(uri):
     url = HOST + uri
 
     try:
@@ -185,7 +193,7 @@ def checkUri(uri):
         log_file_name = 'ok'
         message = '%s' % url
     except urllib2.HTTPError as error:
-        log_file_name = getErrorFilename(error)
+        log_file_name = get_error_filename(error)
 
         if 400 <= int(error.code) < 500:
             Counters.error4xx += 1
@@ -196,7 +204,7 @@ def checkUri(uri):
         message = '%s - %s' % (error, url)
     except Exception as error:
         Counters.errorOther += 1
-        log_file_name = getErrorFilename(error)
+        log_file_name = get_error_filename(error)
         message = '%s - %s' % (error, url)
 
     try:
@@ -206,7 +214,7 @@ def checkUri(uri):
         logging_file.close()
 
 
-def getErrorFilename(error):
+def get_error_filename(error):
     file_name = str(error)
     file_name = file_name.lower()
     file_name = re.sub('[^\w]', '_', file_name)
@@ -214,7 +222,7 @@ def getErrorFilename(error):
     return file_name
 
 
-def isFakeRequest(line):
+def is_fake_request(line):
     for segment in FAKE_SUBSTR:
         if segment in line:
             return True
