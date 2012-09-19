@@ -8,7 +8,7 @@ PATH_TO_NGINX_ACCESS_LOG = '/var/log/nginx/access.log.1'
 PATH_TO_LOG = 'logs/'
 
 # count latest bites from access log for analize (zero - parsing all file)
-COUNT_LATEST_BITES = 2*1024*1024
+COUNT_LATEST_BITES = 2 * 1024 * 1024
 
 # count threading
 COUNT_THREADING = 8
