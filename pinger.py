@@ -9,10 +9,15 @@ import sys
 from Queue import Queue
 from threading import Thread
 import time
+import subprocess
 
-from config import HOST, PATH_TO_NGINX_ACCESS_LOG, PATH_TO_LOG,\
+from selenium import webdriver
+
+from config import HOST, HOST_COMPARE_SREEN, PATH_TO_NGINX_ACCESS_LOG,\
+                   PATH_TO_LOG,\
                    COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,\
-                   FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD
+                   FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD,\
+                   HOST_COMPARE_SREEN
 
 COUNT_LATEST_MBITES = COUNT_LATEST_BITES / (1024 * 1024)
 
@@ -20,6 +25,12 @@ COLORS = {
     'reset': "\x1b[0m",
     'green': "\x1b[32;01m",
     'red': "\x1b[31;01m"
+}
+FIREFOX = 'firefox'
+CHROME = 'chrome'
+BROWSERS = {
+    FIREFOX: webdriver.Firefox(),
+    # CHROME: webdriver.Chrome()
 }
 
 
@@ -123,8 +134,12 @@ def set_django_admin_login():
 
         encoded_params = urllib.urlencode(params)
 
-        with contextlib.closing(opener.open(login_url, encoded_params)) as f:
-            response = f.read()
+        try:
+            with contextlib.closing(opener.open(login_url, encoded_params)) as f:
+                response = f.read()
+        except urllib2.HTTPError as error:
+            raise PingerException(error)
+
         if 'id="login-form"' in response:
             raise PingerException('Wrong login or password')
     except PingerException as error:
@@ -192,6 +207,7 @@ def check_uri(uri):
         urllib2.urlopen(request)
         log_file_name = 'ok'
         message = '%s' % url
+        screen(uri)
     except urllib2.HTTPError as error:
         log_file_name = get_error_filename(error)
 
@@ -214,6 +230,7 @@ def check_uri(uri):
         logging_file.close()
 
 
+
 def get_error_filename(error):
     file_name = str(error)
     file_name = file_name.lower()
@@ -226,6 +243,43 @@ def is_fake_request(line):
     for segment in FAKE_SUBSTR:
         if segment in line:
             return True
+
+
+def screen(uri):
+    browser = BROWSERS[FIREFOX]
+
+    time_sleep = 0.5
+    url = HOST + uri
+    browser.get(url)
+    time.sleep(time_sleep)
+    path_one = PATH_TO_LOG + get_error_filename(url)
+    browser.save_screenshot(path_one)
+
+    url = HOST_COMPARE_SREEN + uri
+    browser.get(url)
+    time.sleep(time_sleep)
+    path_two = PATH_TO_LOG + get_error_filename(url)
+    browser.save_screenshot(path_two)
+
+    path_diff = PATH_TO_LOG + get_error_filename(uri) + '.png'
+    response = subprocess.check_output(['compare',
+                                        '-metric', 'PSNR',
+                                        path_one, path_two,
+                                        '-highlight-color red',
+                                        path_diff],
+                                       stderr=subprocess.STDOUT)[:-1]
+    os.remove(path_one)
+    os.remove(path_two)
+    if response == 'inf':
+        os.remove(path_diff)
+        path_diff = ''
+
+    file_name = PATH_TO_LOG + 'screen'
+    try:
+        logging_file = open(file_name, 'a')
+        logging_file.write('\n' + response + ' ' + uri + ' ' + path_diff)
+    finally:
+        logging_file.close()
 
 
 if __name__ == "__main__":
