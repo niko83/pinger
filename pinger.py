@@ -14,7 +14,7 @@ import subprocess
 from selenium import webdriver
 
 from config import HOST, HOST_COMPARE_SREEN, PATH_TO_NGINX_ACCESS_LOG,\
-                   PATH_TO_LOG,\
+                   PATH_TO_LOG, PATH_TO_SCREENS,\
                    COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,\
                    FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD,\
                    HOST_COMPARE_SREEN
@@ -77,19 +77,22 @@ def main():
 
     set_django_admin_login()
 
-    enclosure_queue = Queue()
-    for uri in uri_for_checking:
-        enclosure_queue.put(uri)
+    # enclosure_queue = Queue()
+    # for uri in uri_for_checking:
+        # enclosure_queue.put(uri)
 
     Counters.startTime = time.time()
     Counters.uri_for_checking = len(uri_for_checking)
 
-    for i in range(COUNT_THREADING):
-        worker = Thread(target=processing_uri_queue, args=(enclosure_queue,))
-        worker.setDaemon(True)
-        worker.start()
+    for uri in uri_for_checking:
+        check_uri(uri)
 
-    enclosure_queue.join()
+    # for i in range(COUNT_THREADING):
+        # worker = Thread(target=processing_uri_queue, args=(enclosure_queue,))
+        # worker.setDaemon(True)
+        # worker.start()
+
+    # enclosure_queue.join()
 
     if PATH_TO_LOG.startswith('/'):
         ABS_PATH_TO_LOG = PATH_TO_LOG
@@ -230,12 +233,13 @@ def check_uri(uri):
         logging_file.close()
 
 
-
 def get_error_filename(error):
     file_name = str(error)
     file_name = file_name.lower()
     file_name = re.sub('[^\w]', '_', file_name)
     file_name = file_name if file_name else 'unknown_error'
+    if len(file_name) > 100:
+        file_name = file_name[0:100]
     return file_name
 
 
@@ -245,34 +249,41 @@ def is_fake_request(line):
             return True
 
 
+def _get_path_to_screen(path):
+    return PATH_TO_SCREENS + get_error_filename(path) + '.png'
+
+
 def screen(uri):
     browser = BROWSERS[FIREFOX]
 
-    time_sleep = 0.5
+    time_sleep = 0
     url = HOST + uri
     browser.get(url)
     time.sleep(time_sleep)
-    path_one = PATH_TO_LOG + get_error_filename(url)
+    path_one = _get_path_to_screen(url)
     browser.save_screenshot(path_one)
 
     url = HOST_COMPARE_SREEN + uri
     browser.get(url)
     time.sleep(time_sleep)
-    path_two = PATH_TO_LOG + get_error_filename(url)
+    path_two = _get_path_to_screen(url)
     browser.save_screenshot(path_two)
 
-    path_diff = PATH_TO_LOG + get_error_filename(uri) + '.png'
     response = subprocess.check_output(['compare',
-                                        '-metric', 'PSNR',
+                                        '-metric', 'AE',
+                                        '-fuzz', '10%',
                                         path_one, path_two,
-                                        '-highlight-color red',
-                                        path_diff],
-                                       stderr=subprocess.STDOUT)[:-1]
+                                        '/dev/null'],
+                                       stderr=subprocess.STDOUT)
+    response = response[:-1]
+    path_diff = ''
+    if response != '0':
+        path_diff = _get_path_to_screen(uri)
+        os.system('compare %s %s -highlight-color red %s' % (path_one, path_two, path_diff))
+
+    time.sleep(0.2)
     os.remove(path_one)
     os.remove(path_two)
-    if response == 'inf':
-        os.remove(path_diff)
-        path_diff = ''
 
     file_name = PATH_TO_LOG + 'screen'
     try:
