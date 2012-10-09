@@ -288,12 +288,16 @@ def get_compare_img(browser, uri, sleep=0, is_last=False):
     path_two = _get_path_to_screen(prefix + '_2')
     browser.save_screenshot(path_two)
 
-    response = subprocess.check_output(['compare',
-                                        '-metric', 'AE',
-                                        '-fuzz', '10%',
-                                        path_one, path_two,
-                                        '/dev/null'],
-                                       stderr=subprocess.STDOUT)[:-1]
+    try:
+        response = subprocess.check_output(['compare',
+                                            '-metric', 'AE',
+                                            '-fuzz', '10%',
+                                            path_one, path_two,
+                                            '/dev/null'],
+                                           stderr=subprocess.STDOUT)[:-1]
+    except subprocess.CalledProcessError as error:
+        write_to_screen_log('999999', str(error), uri)
+        response = '0'
 
     if not is_last:
         time.sleep(0.2)
