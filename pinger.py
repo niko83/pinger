@@ -22,6 +22,7 @@ from config import HOST, HOST_COMPARE_SREEN, PATH_TO_NGINX_ACCESS_LOG,\
                    HOST_COMPARE_SREEN
 
 COUNT_LATEST_MBITES = COUNT_LATEST_BITES / (1024 * 1024)
+PATH_TO_LOG_SCREEN = PATH_TO_LOG + 'screen'
 
 COLORS = {
     'reset': "\x1b[0m",
@@ -32,10 +33,7 @@ COLORS = {
 FIREFOX = 'firefox'
 CHROME = 'chrome'
 
-BROWSERS = {
-    # FIREFOX: webdriver.Firefox(),
-    # CHROME: webdriver.Chrome()
-}
+BROWSERS = []
 
 
 class PingerException(Exception):
@@ -88,15 +86,18 @@ def main():
     Counters.startTime = time.time()
     Counters.uri_for_checking = len(uri_for_checking)
 
-    # for uri in uri_for_checking:
-        # check_uri(uri)
-
     for i in range(COUNT_THREADING):
-        worker = Thread(target=processing_uri_queue, args=(enclosure_queue, [webdriver.Firefox()]))
+        browser = webdriver.Firefox()
+        BROWSERS.append(browser)
+
+        worker = Thread(target=processing_uri_queue, args=(enclosure_queue, [browser]))
         worker.setDaemon(True)
         worker.start()
 
     enclosure_queue.join()
+
+    for browser in BROWSERS:
+        browser.quit()
 
     if PATH_TO_LOG.startswith('/'):
         ABS_PATH_TO_LOG = PATH_TO_LOG
@@ -220,8 +221,15 @@ def check_uri(uri, browsers):
         log_file_name = 'ok'
         message = '%s' % url
         if IS_CHECK_UI:
-            for browser in browsers:
-                screen(uri, browser)
+            try:
+                request = urllib2.Request(HOST_COMPARE_SREEN + uri)
+                request.get_method = lambda: 'HEAD'
+                urllib2.urlopen(request)
+            except urllib2.HTTPError as error:
+                write_to_screen_log(str(error), uri)
+            else:
+                for browser in browsers:
+                    screen(uri, browser)
     except urllib2.HTTPError as error:
         log_file_name = get_error_filename(error)
 
@@ -305,13 +313,16 @@ def get_compare_img(browser, uri, sleep=0, is_last=False):
         os.remove(path_one)
         os.remove(path_two)
 
-    file_name = PATH_TO_LOG + 'screen'
+    write_to_screen_log(response, uri, path_diff)
+
+
+def write_to_screen_log(*arg):
+    file_name = PATH_TO_LOG_SCREEN
     try:
         logging_file = open(file_name, 'a')
-        logging_file.write('\n' + response + ' ' + uri + ' ' + path_diff)
+        logging_file.write('\n' + ''.join(arg))
     finally:
         logging_file.close()
-
 
 def screen(uri, browser):
     if not get_compare_img(browser, uri):
