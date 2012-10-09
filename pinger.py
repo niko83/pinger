@@ -10,6 +10,7 @@ from Queue import Queue
 from threading import Thread
 import time
 import subprocess
+import random
 
 from selenium import webdriver
 
@@ -17,6 +18,7 @@ from config import HOST, HOST_COMPARE_SREEN, PATH_TO_NGINX_ACCESS_LOG,\
                    PATH_TO_LOG, PATH_TO_SCREENS,\
                    COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,\
                    FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD,\
+                   IS_CHECK_UI,\
                    HOST_COMPARE_SREEN
 
 COUNT_LATEST_MBITES = COUNT_LATEST_BITES / (1024 * 1024)
@@ -26,10 +28,12 @@ COLORS = {
     'green': "\x1b[32;01m",
     'red': "\x1b[31;01m"
 }
+
 FIREFOX = 'firefox'
 CHROME = 'chrome'
+
 BROWSERS = {
-    FIREFOX: webdriver.Firefox(),
+    # FIREFOX: webdriver.Firefox(),
     # CHROME: webdriver.Chrome()
 }
 
@@ -77,22 +81,22 @@ def main():
 
     set_django_admin_login()
 
-    # enclosure_queue = Queue()
-    # for uri in uri_for_checking:
-        # enclosure_queue.put(uri)
+    enclosure_queue = Queue()
+    for uri in uri_for_checking:
+        enclosure_queue.put(uri)
 
     Counters.startTime = time.time()
     Counters.uri_for_checking = len(uri_for_checking)
 
-    for uri in uri_for_checking:
-        check_uri(uri)
+    # for uri in uri_for_checking:
+        # check_uri(uri)
 
-    # for i in range(COUNT_THREADING):
-        # worker = Thread(target=processing_uri_queue, args=(enclosure_queue,))
-        # worker.setDaemon(True)
-        # worker.start()
+    for i in range(COUNT_THREADING):
+        worker = Thread(target=processing_uri_queue, args=(enclosure_queue, [webdriver.Firefox()]))
+        worker.setDaemon(True)
+        worker.start()
 
-    # enclosure_queue.join()
+    enclosure_queue.join()
 
     if PATH_TO_LOG.startswith('/'):
         ABS_PATH_TO_LOG = PATH_TO_LOG
@@ -182,12 +186,17 @@ def get_uri_from_line(line):
     return False
 
 
-def processing_uri_queue(queue):
+def processing_uri_queue(queue, browsers):
     while True:
         uri = queue.get()
-        check_uri(uri)
+        check_uri(uri, browsers)
         queue.task_done()
         qsize = queue.qsize()
+        try:
+            str(qsize)
+        except:
+            return
+
         if qsize % PRINT_STATUS_COUNT == 0:
             executTimeOneRequest = (time.time() - Counters.startTime) / (Counters.uri_for_checking - qsize)
             leftTime = qsize * executTimeOneRequest
@@ -201,7 +210,7 @@ def processing_uri_queue(queue):
                             Counters.error5xx, Counters.error4xx, Counters.errorOther), flush=True)
 
 
-def check_uri(uri):
+def check_uri(uri, browsers):
     url = HOST + uri
 
     try:
@@ -210,7 +219,9 @@ def check_uri(uri):
         urllib2.urlopen(request)
         log_file_name = 'ok'
         message = '%s' % url
-        screen(uri)
+        if IS_CHECK_UI:
+            for browser in browsers:
+                screen(uri, browser)
     except urllib2.HTTPError as error:
         log_file_name = get_error_filename(error)
 
@@ -253,20 +264,20 @@ def _get_path_to_screen(path):
     return PATH_TO_SCREENS + get_error_filename(path) + '.png'
 
 
-def screen(uri):
-    browser = BROWSERS[FIREFOX]
+def get_compare_img(browser, uri, sleep=0, is_last=False):
 
-    time_sleep = 0
+    prefix = str(random.randint(10000000, 99999999))
+
     url = HOST + uri
     browser.get(url)
-    time.sleep(time_sleep)
-    path_one = _get_path_to_screen(url)
+    time.sleep(sleep)
+    path_one = _get_path_to_screen(prefix + '_1')
     browser.save_screenshot(path_one)
 
     url = HOST_COMPARE_SREEN + uri
     browser.get(url)
-    time.sleep(time_sleep)
-    path_two = _get_path_to_screen(url)
+    time.sleep(sleep)
+    path_two = _get_path_to_screen(prefix + '_2')
     browser.save_screenshot(path_two)
 
     response = subprocess.check_output(['compare',
@@ -274,16 +285,25 @@ def screen(uri):
                                         '-fuzz', '10%',
                                         path_one, path_two,
                                         '/dev/null'],
-                                       stderr=subprocess.STDOUT)
-    response = response[:-1]
+                                       stderr=subprocess.STDOUT)[:-1]
+
+    if not is_last:
+        time.sleep(0.2)
+        os.remove(path_one)
+        os.remove(path_two)
+        if response == '0':
+            return True
+        else:
+            return False
+
     path_diff = ''
     if response != '0':
-        path_diff = _get_path_to_screen(uri)
+        path_diff = _get_path_to_screen(prefix + '_diff')
         os.system('compare %s %s -highlight-color red %s' % (path_one, path_two, path_diff))
-
-    time.sleep(0.2)
-    os.remove(path_one)
-    os.remove(path_two)
+    else:
+        time.sleep(0.2)
+        os.remove(path_one)
+        os.remove(path_two)
 
     file_name = PATH_TO_LOG + 'screen'
     try:
@@ -291,6 +311,11 @@ def screen(uri):
         logging_file.write('\n' + response + ' ' + uri + ' ' + path_diff)
     finally:
         logging_file.close()
+
+
+def screen(uri, browser):
+    if not get_compare_img(browser, uri):
+        get_compare_img(browser, uri, 5, True)
 
 
 if __name__ == "__main__":
