@@ -277,12 +277,14 @@ def get_compare_img(browser, uri, sleep=0, is_last=False):
     prefix = str(random.randint(10000000, 99999999))
 
     url = HOST + uri
+    browser.delete_all_cookies()
     browser.get(url)
     time.sleep(sleep)
     path_one = _get_path_to_screen(prefix + '_1')
     browser.save_screenshot(path_one)
 
     url = HOST_COMPARE_SREEN + uri
+    browser.delete_all_cookies()
     browser.get(url)
     time.sleep(sleep)
     path_two = _get_path_to_screen(prefix + '_2')
