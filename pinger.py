@@ -14,12 +14,13 @@ import random
 
 from selenium import webdriver
 
-from config import HOST, HOST_COMPARE_SREEN, PATH_TO_NGINX_ACCESS_LOG,\
-                   PATH_TO_LOG, PATH_TO_SCREENS,\
-                   COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,\
-                   FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD,\
-                   IS_CHECK_UI,\
-                   HOST_COMPARE_SREEN
+from config import (
+    HOST, HOST_COMPARE_SREEN, PATH_TO_NGINX_ACCESS_LOG,
+    PATH_TO_LOG, PATH_TO_SCREENS,
+    COUNT_LATEST_BITES, COUNT_THREADING, PRINT_STATUS_COUNT,
+    FAKE_SUBSTR, DJANGO_ADMIN_LOGIN, DJANGO_ADMIN_PASSWORD,
+    IS_CHECK_UI,
+)
 
 COUNT_LATEST_MBITES = COUNT_LATEST_BITES / (1024 * 1024)
 PATH_TO_LOG_SCREEN = PATH_TO_LOG + 'screen'
@@ -61,10 +62,14 @@ def main():
         logging('Error: path to logs "%s" not found!!!\n' % PATH_TO_LOG, 'red')
         return
     if not os.path.exists(PATH_TO_NGINX_ACCESS_LOG):
-        logging('Error: path to nginx access log "%s" not found!!!\n' % PATH_TO_NGINX_ACCESS_LOG, 'red')
+        logging('Error: path to nginx access log "%s" not found!!!\n'
+                % PATH_TO_NGINX_ACCESS_LOG, 'red')
         return
 
-    if COUNT_LATEST_MBITES and (get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_MBITES):
+    if (
+        COUNT_LATEST_MBITES
+        and (get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_MBITES)
+    ):
         analized_fragment = COUNT_LATEST_MBITES
     else:
         analized_fragment = get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG)
@@ -86,7 +91,7 @@ def main():
     Counters.startTime = time.time()
     Counters.uri_for_checking = len(uri_for_checking)
 
-    for i in range(COUNT_THREADING):
+    for _ in range(COUNT_THREADING):
         browser = webdriver.Firefox()
         BROWSERS.append(browser)
 
@@ -108,8 +113,15 @@ def main():
 
 
 def logging(text, color='reset', flush=False):
-    br = '' if flush else '\n'
-    sys.stdout.write(''.join([COLORS[color], text, COLORS['reset'],  " " * (80 - len(text)), '\r', br]))
+    sys.stdout.write(
+        ''.join([
+            COLORS[color],
+            text,
+            COLORS['reset'],
+            " " * (80 - len(text)), '\r',
+            '' if flush else '\n',
+        ])
+    )
     sys.stdout.flush()
 
 
@@ -160,7 +172,10 @@ def set_django_admin_login():
 def getUriesFromFile(path_to_file):
     log_file = open(path_to_file, 'r')
     try:
-        if COUNT_LATEST_BITES and (os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_BITES):
+        if (
+            COUNT_LATEST_BITES
+            and (os.path.getsize(PATH_TO_NGINX_ACCESS_LOG) > COUNT_LATEST_BITES)
+        ):
             log_file.seek(-COUNT_LATEST_BITES, 2)
         lines = True
         uri_for_checking = set()
@@ -199,16 +214,19 @@ def processing_uri_queue(queue, browsers):
             return
 
         if qsize % PRINT_STATUS_COUNT == 0:
-            executTimeOneRequest = (time.time() - Counters.startTime) / (Counters.uri_for_checking - qsize)
+            executTimeOneRequest = ((time.time() - Counters.startTime)
+                                    / (Counters.uri_for_checking - qsize))
             leftTime = qsize * executTimeOneRequest
 
             leftTime_hour = int(leftTime / 3600)
             leftTime_min = int((leftTime - leftTime_hour * 3600) / 60)
             leftTime_sec = int(leftTime - leftTime_min * 60 - leftTime_hour * 3600)
 
-            logging('Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d}). Avg. time response: {:d} ms. Errors 5xx:{:d} 4xx:{:d} Other:{:d}'
-                    .format(qsize, leftTime_hour, leftTime_min, leftTime_sec, int(executTimeOneRequest * 1000),
-                            Counters.error5xx, Counters.error4xx, Counters.errorOther), flush=True)
+            logging('Left parsing {:>7d} urls (time left {:0>3d}:{:0>2d}:{:0>2d}). '
+                    'Avg. time response: {:d} ms. Errors 5xx:{:d} 4xx:{:d} Other:{:d}'
+                    .format(qsize, leftTime_hour, leftTime_min, leftTime_sec,
+                            int(executTimeOneRequest * 1000), Counters.error5xx, Counters.error4xx,
+                            Counters.errorOther), flush=True)
 
 
 def check_uri(uri, browsers):
@@ -291,12 +309,9 @@ def get_compare_img(browser, uri, sleep=0, is_last=False):
     browser.save_screenshot(path_two)
 
     try:
-        response = subprocess.check_output(['compare',
-                                            '-metric', 'AE',
-                                            '-fuzz', '10%',
-                                            path_one, path_two,
-                                            '/dev/null'],
-                                           stderr=subprocess.STDOUT)[:-1]
+        response = subprocess.check_output([
+            'compare', '-metric', 'AE', '-fuzz', '10%', path_one, path_two, '/dev/null'
+        ], stderr=subprocess.STDOUT)[:-1]
     except subprocess.CalledProcessError as error:
         write_to_screen_log('999999', str(error), uri)
         response = '0'

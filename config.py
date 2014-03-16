@@ -1,5 +1,17 @@
+#-*- coding: utf-8 -*-
+"""
+Файл с конфигурационными настройками
+"""
+
 # Configuration
 HOST = 'http://domainForTest.loc'
+HOST_COMPARE_SREEN = 'http://stagging.domainForTest.loc'
+
+#Нужно ли проверять отображение UI
+IS_CHECK_UI = True
+
+#Путь куда сохраняем скриншоты с хостов HOST, HOST_COMPARE_SREEN перед их сравнением
+PATH_TO_SCREENS = '/tmp/'
 
 # absolute or relative path to access nginx log
 PATH_TO_NGINX_ACCESS_LOG = '/var/log/nginx/access.log.1'
