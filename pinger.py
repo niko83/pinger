@@ -13,7 +13,10 @@ import subprocess
 import random
 
 from selenium import webdriver
+#test commit 1
+#test commit 2
 
+#test commit 3
 from config import (
     HOST, HOST_COMPARE_SREEN, PATH_TO_NGINX_ACCESS_LOG,
     PATH_TO_LOG, PATH_TO_SCREENS,
