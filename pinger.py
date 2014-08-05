@@ -75,10 +75,10 @@ def main():
         analized_fragment = get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG)
 
     logging('{:<20}:{:s} ({:.2f} Mb from {:.2f} Mb)'.format(
-            'Parsing log file', PATH_TO_NGINX_ACCESS_LOG,
-            analized_fragment,
-            get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG)
-            ))
+        'Parsing log file', PATH_TO_NGINX_ACCESS_LOG,
+        analized_fragment,
+        get_file_size_mb(PATH_TO_NGINX_ACCESS_LOG)
+    ))
     uri_for_checking = getUriesFromFile(PATH_TO_NGINX_ACCESS_LOG)
     logging('{:<20}:{:d}'.format('Found unique uri', len(uri_for_checking)))
 
